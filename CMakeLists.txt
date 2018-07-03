@@ -47,8 +47,8 @@ if (CATKIN_ENABLE_TESTING)
     MD5 3d5194e6981975588b7a93caebf79ba4)
   add_custom_target(${PROJECT_NAME}_test_data
     COMMAND ${CMAKE_COMMAND} -E tar -xzf velodyne_loam_test_data.tar.gz
-    DEPENDS ${PROJECT_NAME}_test_data.tar.gz)
-  configure_file(tests/loam.test.in
+#    DEPENDS ${PROJECT_NAME}_test_data.tar.gz)
+#  configure_file(tests/loam.test.in
                  ${PROJECT_BINARY_DIR}/test/loam.test)
   add_rostest(${PROJECT_BINARY_DIR}/test/loam.test
     DEPENDENCIES
