@@ -2,6 +2,8 @@
 
   <arg name="rviz" default="true" />
 
+  <remap from="imu/data" to="mavros/imu/data"/>
+
   <node pkg="loam_velodyne" type="scanRegistration" name="scanRegistration" output="screen"/>
 
   <node pkg="loam_velodyne" type="laserOdometry" name="laserOdometry" output="screen" respawn="true">

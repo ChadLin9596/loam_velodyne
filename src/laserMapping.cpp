@@ -322,6 +322,7 @@ void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr& laserOdometry)
 
 void imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
 {
+  ROS_INFO("laser receive");
   double roll, pitch, yaw;
   tf::Quaternion orientation;
   tf::quaternionMsgToTF(imuIn->orientation, orientation);

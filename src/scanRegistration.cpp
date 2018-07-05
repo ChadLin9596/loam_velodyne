@@ -637,6 +637,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 
 void imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
 {
+  ROS_INFO("scan receive");
   double roll, pitch, yaw;
   tf::Quaternion orientation;
   tf::quaternionMsgToTF(imuIn->orientation, orientation);
