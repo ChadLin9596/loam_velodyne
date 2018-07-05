@@ -210,8 +210,10 @@ void AccumulateIMUShift()
 
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 {
+
   if (!systemInited) {
     systemInitCount++;
+    // system delay is 20
     if (systemInitCount >= systemDelay) {
       systemInited = true;
     }
@@ -219,6 +221,10 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   }
 
   std::vector<int> scanStartInd(N_SCANS, 0);
+
+  // chad
+  printf("array : %d \n",scanStartInd[16]);
+
   std::vector<int> scanEndInd(N_SCANS, 0);
   
   double timeScanCur = laserCloudMsg->header.stamp.toSec();
@@ -228,26 +234,31 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   pcl::removeNaNFromPointCloud(laserCloudIn, laserCloudIn, indices);
   int cloudSize = laserCloudIn.points.size();
   float startOri = -atan2(laserCloudIn.points[0].y, laserCloudIn.points[0].x);
-  float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y,
-                        laserCloudIn.points[cloudSize - 1].x) + 2 * M_PI;
+  float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y,laserCloudIn.points[cloudSize - 1].x) + 2 * M_PI;
 
   if (endOri - startOri > 3 * M_PI) {
     endOri -= 2 * M_PI;
   } else if (endOri - startOri < M_PI) {
     endOri += 2 * M_PI;
   }
+
   bool halfPassed = false;
   int count = cloudSize;
   PointType point;
   std::vector<pcl::PointCloud<PointType> > laserCloudScans(N_SCANS);
+
+  //===================================
   for (int i = 0; i < cloudSize; i++) {
     point.x = laserCloudIn.points[i].y;
     point.y = laserCloudIn.points[i].z;
     point.z = laserCloudIn.points[i].x;
 
-    float angle = atan(point.y / sqrt(point.x * point.x + point.z * point.z)) * 180 / M_PI;
+    // classfy each point into 360 degree
+    float angle = atan(point.y / sqrt(pow(point.x,2) + pow(point.z,2))) * 180 / M_PI;
     int scanID;
-    int roundedAngle = int(angle + (angle<0.0?-0.5:+0.5)); 
+    int roundedAngle = int(angle + (angle<0.0?-0.5:+0.5)); // means if angle <0 then -0.5 else 0.5
+
+    // chad question
     if (roundedAngle > 0){
       scanID = roundedAngle;
     }
@@ -259,23 +270,27 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
       continue;
     }
 
+    // declare ori
     float ori = -atan2(point.x, point.z);
     if (!halfPassed) {
       if (ori < startOri - M_PI / 2) {
         ori += 2 * M_PI;
-      } else if (ori > startOri + M_PI * 3 / 2) {
+      }
+      else if (ori > startOri + M_PI * 3 / 2) {
         ori -= 2 * M_PI;
       }
 
       if (ori - startOri > M_PI) {
         halfPassed = true;
       }
-    } else {
+    }
+    else {
       ori += 2 * M_PI;
 
       if (ori < endOri - M_PI * 3 / 2) {
         ori += 2 * M_PI;
-      } else if (ori > endOri + M_PI / 2) {
+      }
+      else if (ori > endOri + M_PI / 2) {
         ori -= 2 * M_PI;
       } 
     }
@@ -349,6 +364,8 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     }
     laserCloudScans[scanID].push_back(point);
   }
+  //===================================
+
   cloudSize = count;
 
   pcl::PointCloud<PointType>::Ptr laserCloud(new pcl::PointCloud<PointType>());
@@ -665,27 +682,15 @@ int main(int argc, char** argv)
   //ros::init(argc, argv, "scanRegistration");
   ros::init(argc, argv, "scanRegistration");
   ros::NodeHandle nh;
-
-  ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> 
-                                  ("/velodyne_points", 2, laserCloudHandler);
-
+  // declare subscriber
+  ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 2, laserCloudHandler);
   ros::Subscriber subImu = nh.subscribe<sensor_msgs::Imu> ("/imu/data", 50, imuHandler);
-
-  pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2>
-                                 ("/velodyne_cloud_2", 2);
-
-  pubCornerPointsSharp = nh.advertise<sensor_msgs::PointCloud2>
-                                        ("/laser_cloud_sharp", 2);
-
-  pubCornerPointsLessSharp = nh.advertise<sensor_msgs::PointCloud2>
-                                            ("/laser_cloud_less_sharp", 2);
-
-  pubSurfPointsFlat = nh.advertise<sensor_msgs::PointCloud2>
-                                       ("/laser_cloud_flat", 2);
-
-  pubSurfPointsLessFlat = nh.advertise<sensor_msgs::PointCloud2>
-                                           ("/laser_cloud_less_flat", 2);
-
+  // declare publisher
+  pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_cloud_2", 2);
+  pubCornerPointsSharp = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_sharp", 2);
+  pubCornerPointsLessSharp = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_less_sharp", 2);
+  pubSurfPointsFlat = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_flat", 2);
+  pubSurfPointsLessFlat = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_less_flat", 2);
   pubImuTrans = nh.advertise<sensor_msgs::PointCloud2> ("/imu_trans", 5);
 
   ros::spin();
