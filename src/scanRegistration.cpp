@@ -249,6 +249,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 
   //===================================
   for (int i = 0; i < cloudSize; i++) {
+    // project lidar on camera
     point.x = laserCloudIn.points[i].y;
     point.y = laserCloudIn.points[i].z;
     point.z = laserCloudIn.points[i].x;
@@ -256,7 +257,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     // classfy each point into 360 degree
     float angle = atan(point.y / sqrt(pow(point.x,2) + pow(point.z,2))) * 180 / M_PI;
     int scanID;
-    int roundedAngle = int(angle + (angle<0.0?-0.5:+0.5)); // means if angle <0 then -0.5 else 0.5
+    int roundedAngle = int(angle + (angle<0.0?-0.5:+0.5)); // means if angle <0 then -0.5 else 0.5 -90-90
 
     // chad question
     if (roundedAngle > 0){
@@ -270,23 +271,21 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
       continue;
     }
 
-    // declare ori
+    // declare ori on camera frame
     float ori = -atan2(point.x, point.z);
     if (!halfPassed) {
-      if (ori < startOri - M_PI / 2) {
+      if (ori < startOri - M_PI/2) {
         ori += 2 * M_PI;
       }
-      else if (ori > startOri + M_PI * 3 / 2) {
+      else if (ori > startOri + M_PI*3/2) {
         ori -= 2 * M_PI;
       }
-
       if (ori - startOri > M_PI) {
         halfPassed = true;
       }
     }
     else {
       ori += 2 * M_PI;
-
       if (ori < endOri - M_PI * 3 / 2) {
         ori += 2 * M_PI;
       }
@@ -295,9 +294,11 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
       } 
     }
 
-    float relTime = (ori - startOri) / (endOri - startOri);
-    point.intensity = scanID + scanPeriod * relTime;
+    // caculate relative scan time based on point orientation
+    float relTime = (ori - startOri) /(endOri - startOri);
+    point.intensity = scanID + scanPeriod * relTime;// scanPeriod = 0.1
 
+    // interact with imu
     if (imuPointerLast >= 0) {
       float pointTime = relTime * scanPeriod;
       while (imuPointerFront != imuPointerLast) {
@@ -362,6 +363,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
         TransformToStartIMU(&point);
       }
     }
+    // classify each point into 16 scan
     laserCloudScans[scanID].push_back(point);
   }
   //===================================
@@ -374,6 +376,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   }
   int scanCount = -1;
   for (int i = 5; i < cloudSize - 5; i++) {
+    // compare point i and other 10 points to caculate the smooth
     float diffX = laserCloud->points[i - 5].x + laserCloud->points[i - 4].x 
                 + laserCloud->points[i - 3].x + laserCloud->points[i - 2].x 
                 + laserCloud->points[i - 1].x - 10 * laserCloud->points[i].x 
@@ -392,6 +395,8 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
                 + laserCloud->points[i + 1].z + laserCloud->points[i + 2].z
                 + laserCloud->points[i + 3].z + laserCloud->points[i + 4].z
                 + laserCloud->points[i + 5].z;
+
+    // all are vector [40000];
     cloudCurvature[i] = diffX * diffX + diffY * diffY + diffZ * diffZ;
     cloudSortInd[i] = i;
     cloudNeighborPicked[i] = 0;
