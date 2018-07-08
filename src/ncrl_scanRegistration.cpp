@@ -179,17 +179,31 @@ void AccumulateIMUShift()
   float accY = imuAccY[imuPointerLast];
   float accZ = imuAccZ[imuPointerLast];
 
-  float x1 = cos(roll) * accX - sin(roll) * accY;
-  float y1 = sin(roll) * accX + cos(roll) * accY;
-  float z1 = accZ;
+  // 3D rotation matrix  trans from imu frame to local frame?
+//  float x1 = cos(roll)*accX - sin(roll)*accY;
+//  float y1 = sin(roll)*accX + cos(roll)*accY;
+//  float z1 = accZ;
 
-  float x2 = x1;
-  float y2 = cos(pitch) * y1 - sin(pitch) * z1;
-  float z2 = sin(pitch) * y1 + cos(pitch) * z1;
+//  float x2 = x1;
+//  float y2 = cos(pitch)*y1 - sin(pitch)*z1;
+//  float z2 = sin(pitch)*y1 + cos(pitch)*z1;
 
-  accX = cos(yaw) * x2 + sin(yaw) * z2;
-  accY = y2;
-  accZ = -sin(yaw) * x2 + cos(yaw) * z2;
+//  accX     = cos(yaw)*x2 + sin(yaw)*z2;
+//  accY     = y2;
+//  accZ     = -sin(yaw)*x2 + cos(yaw)*z2;
+
+  float x1 = accX;
+  float y1 = cos(roll)*accY - sin(roll)*accZ;
+  float z1 = sin(roll)*accY + cos(roll)*accZ;
+
+  float x2 = sin(pitch)*z1 + cos(pitch)*x1;
+  float y2 = y1;
+  float z2 = cos(pitch)*z1 - sin(pitch)*x1;
+
+  accX     = cos(yaw)*x2 - sin(yaw)*y2;
+  accY     = sin(yaw)*x2 + cos(yaw)*y2;
+  accZ     = z2;
+  // 3D rotation matrix
 
   int imuPointerBack = (imuPointerLast + imuQueLength - 1) % imuQueLength;
   double timeDiff = imuTime[imuPointerLast] - imuTime[imuPointerBack];
@@ -671,24 +685,29 @@ void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
   tf::Quaternion orientation;
   tf::quaternionMsgToTF(imuIn->orientation, orientation);
   tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
+
+  // initial acceleration is 0
   /*
   float accX = imuIn->linear_acceleration.y - sin(roll) * cos(pitch) * 9.81;
   float accY = imuIn->linear_acceleration.z - cos(roll) * cos(pitch) * 9.81;
   float accZ = imuIn->linear_acceleration.x + sin(pitch) * 9.81;
   */
-  float accY = -(imuIn->linear_acceleration.y - sin(roll) * cos(pitch) * 9.81);
-  float accZ = -(imuIn->linear_acceleration.z - cos(roll) * cos(pitch) * 9.81);
-  float accX = imuIn->linear_acceleration.x + sin(pitch) * 9.81;
+  // here is on imu body frame
+  float accX = imuIn->linear_acceleration.x + sin(pitch)*9.81;
+  float accY = imuIn->linear_acceleration.y - sin(roll)*9.81;
+  float accZ = imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81;
 
+
+  // initial imuPointerLast is -1  imuQueLength = 200
   imuPointerLast = (imuPointerLast + 1) % imuQueLength;
 
-  imuTime[imuPointerLast] = imuIn->header.stamp.toSec();
-  imuRoll[imuPointerLast] = roll;
+  imuTime [imuPointerLast] = imuIn->header.stamp.toSec();
+  imuRoll [imuPointerLast] = roll;
   imuPitch[imuPointerLast] = pitch;
-  imuYaw[imuPointerLast] = yaw;
-  imuAccX[imuPointerLast] = accX;
-  imuAccY[imuPointerLast] = accY;
-  imuAccZ[imuPointerLast] = accZ;
+  imuYaw  [imuPointerLast] = yaw;
+  imuAccX [imuPointerLast] = accX;
+  imuAccY [imuPointerLast] = accY;
+  imuAccZ [imuPointerLast] = accZ;
 
   AccumulateIMUShift();
 }
