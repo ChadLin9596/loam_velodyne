@@ -223,7 +223,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   std::vector<int> scanStartInd(N_SCANS, 0);
 
   // chad
-  printf("array : %d \n",scanStartInd[16]);
+  //printf("array : %d \n",scanStartInd[16]);
 
   std::vector<int> scanEndInd(N_SCANS, 0);
 
@@ -531,20 +531,17 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
                         - laserCloud->points[ind + l - 1].y;
             float diffZ = laserCloud->points[ind + l].z
                         - laserCloud->points[ind + l - 1].z;
-            if (diffX * diffX + diffY * diffY + diffZ * diffZ > 0.05) {
+            if (pow(diffX,2) + pow(diffY,2) + pow(diffZ,2) > 0.05) {
               break;
             }
 
             cloudNeighborPicked[ind + l] = 1;
           }
           for (int l = -1; l >= -5; l--) {
-            float diffX = laserCloud->points[ind + l].x
-                        - laserCloud->points[ind + l + 1].x;
-            float diffY = laserCloud->points[ind + l].y
-                        - laserCloud->points[ind + l + 1].y;
-            float diffZ = laserCloud->points[ind + l].z
-                        - laserCloud->points[ind + l + 1].z;
-            if (diffX * diffX + diffY * diffY + diffZ * diffZ > 0.05) {
+            float diffX = laserCloud->points[ind + l].x - laserCloud->points[ind + l + 1].x;
+            float diffY = laserCloud->points[ind + l].y - laserCloud->points[ind + l + 1].y;
+            float diffZ = laserCloud->points[ind + l].z - laserCloud->points[ind + l + 1].z;
+            if (pow(diffX,2)+pow(diffY,2)+pow(diffZ,2) > 0.05) {
               break;
             }
 
@@ -663,7 +660,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   sensor_msgs::PointCloud2 imuTransMsg;
   pcl::toROSMsg(imuTrans, imuTransMsg);
   imuTransMsg.header.stamp = laserCloudMsg->header.stamp;
-  imuTransMsg.header.frame_id = "/camera";
+  imuTransMsg.header.frame_id = "/velodyne";
   pubImuTrans.publish(imuTransMsg);
 }
 
@@ -674,10 +671,14 @@ void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
   tf::Quaternion orientation;
   tf::quaternionMsgToTF(imuIn->orientation, orientation);
   tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
-
+  /*
   float accX = imuIn->linear_acceleration.y - sin(roll) * cos(pitch) * 9.81;
   float accY = imuIn->linear_acceleration.z - cos(roll) * cos(pitch) * 9.81;
   float accZ = imuIn->linear_acceleration.x + sin(pitch) * 9.81;
+  */
+  float accY = -(imuIn->linear_acceleration.y - sin(roll) * cos(pitch) * 9.81);
+  float accZ = -(imuIn->linear_acceleration.z - cos(roll) * cos(pitch) * 9.81);
+  float accX = imuIn->linear_acceleration.x + sin(pitch) * 9.81;
 
   imuPointerLast = (imuPointerLast + 1) % imuQueLength;
 
