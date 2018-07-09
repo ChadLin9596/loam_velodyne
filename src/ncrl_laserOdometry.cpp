@@ -359,41 +359,27 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "laserOdometry");
   ros::NodeHandle nh;
 
-  ros::Subscriber subCornerPointsSharp = nh.subscribe<sensor_msgs::PointCloud2>
-                                         ("/laser_cloud_sharp", 2, laserCloudSharpHandler);
+  // declare subscriber
+  ros::Subscriber subCornerPointsSharp = nh.subscribe<sensor_msgs::PointCloud2> ("/laser_cloud_sharp", 2, laserCloudSharpHandler);
+  ros::Subscriber subCornerPointsLessSharp = nh.subscribe<sensor_msgs::PointCloud2> ("/laser_cloud_less_sharp", 2, laserCloudLessSharpHandler);
+  ros::Subscriber subSurfPointsFlat = nh.subscribe<sensor_msgs::PointCloud2> ("/laser_cloud_flat", 2, laserCloudFlatHandler);
+  ros::Subscriber subSurfPointsLessFlat = nh.subscribe<sensor_msgs::PointCloud2> ("/laser_cloud_less_flat", 2, laserCloudLessFlatHandler);
+  ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_cloud_2", 2, laserCloudFullResHandler);
+  ros::Subscriber subImuTrans = nh.subscribe<sensor_msgs::PointCloud2> ("/imu_trans", 5, imuTransHandler);
 
-  ros::Subscriber subCornerPointsLessSharp = nh.subscribe<sensor_msgs::PointCloud2>
-                                             ("/laser_cloud_less_sharp", 2, laserCloudLessSharpHandler);
-
-  ros::Subscriber subSurfPointsFlat = nh.subscribe<sensor_msgs::PointCloud2>
-                                      ("/laser_cloud_flat", 2, laserCloudFlatHandler);
-
-  ros::Subscriber subSurfPointsLessFlat = nh.subscribe<sensor_msgs::PointCloud2>
-                                          ("/laser_cloud_less_flat", 2, laserCloudLessFlatHandler);
-
-  ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2> 
-                                         ("/velodyne_cloud_2", 2, laserCloudFullResHandler);
-
-  ros::Subscriber subImuTrans = nh.subscribe<sensor_msgs::PointCloud2> 
-                                ("/imu_trans", 5, imuTransHandler);
-
-  ros::Publisher pubLaserCloudCornerLast = nh.advertise<sensor_msgs::PointCloud2>
-                                           ("/laser_cloud_corner_last", 2);
-
-  ros::Publisher pubLaserCloudSurfLast = nh.advertise<sensor_msgs::PointCloud2>
-                                         ("/laser_cloud_surf_last", 2);
-
-  ros::Publisher pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2> 
-                                        ("/velodyne_cloud_3", 2);
-
+  // declare Publisher
+  ros::Publisher pubLaserCloudCornerLast = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_corner_last", 2);
+  ros::Publisher pubLaserCloudSurfLast = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_surf_last", 2);
+  ros::Publisher pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_cloud_3", 2);
   ros::Publisher pubLaserOdometry = nh.advertise<nav_msgs::Odometry> ("/laser_odom_to_init", 5);
+
   nav_msgs::Odometry laserOdometry;
-  laserOdometry.header.frame_id = "/camera_init";
+  laserOdometry.header.frame_id = "/velodyne";
   laserOdometry.child_frame_id = "/laser_odom";
 
   tf::TransformBroadcaster tfBroadcaster;
   tf::StampedTransform laserOdometryTrans;
-  laserOdometryTrans.frame_id_ = "/camera_init";
+  laserOdometryTrans.frame_id_ = "/velodyne";
   laserOdometryTrans.child_frame_id_ = "/laser_odom";
 
   std::vector<int> pointSearchInd;
@@ -439,13 +425,13 @@ int main(int argc, char** argv)
         sensor_msgs::PointCloud2 laserCloudCornerLast2;
         pcl::toROSMsg(*laserCloudCornerLast, laserCloudCornerLast2);
         laserCloudCornerLast2.header.stamp = ros::Time().fromSec(timeSurfPointsLessFlat);
-        laserCloudCornerLast2.header.frame_id = "/camera";
+        laserCloudCornerLast2.header.frame_id = "/velodyne";
         pubLaserCloudCornerLast.publish(laserCloudCornerLast2);
 
         sensor_msgs::PointCloud2 laserCloudSurfLast2;
         pcl::toROSMsg(*laserCloudSurfLast, laserCloudSurfLast2);
         laserCloudSurfLast2.header.stamp = ros::Time().fromSec(timeSurfPointsLessFlat);
-        laserCloudSurfLast2.header.frame_id = "/camera";
+        laserCloudSurfLast2.header.frame_id = "/velodyne";
         pubLaserCloudSurfLast.publish(laserCloudSurfLast2);
 
         transformSum[0] += imuPitchStart;
@@ -913,19 +899,19 @@ int main(int argc, char** argv)
         sensor_msgs::PointCloud2 laserCloudCornerLast2;
         pcl::toROSMsg(*laserCloudCornerLast, laserCloudCornerLast2);
         laserCloudCornerLast2.header.stamp = ros::Time().fromSec(timeSurfPointsLessFlat);
-        laserCloudCornerLast2.header.frame_id = "/velodyne";
+        laserCloudCornerLast2.header.frame_id = "/camera";
         pubLaserCloudCornerLast.publish(laserCloudCornerLast2);
 
         sensor_msgs::PointCloud2 laserCloudSurfLast2;
         pcl::toROSMsg(*laserCloudSurfLast, laserCloudSurfLast2);
         laserCloudSurfLast2.header.stamp = ros::Time().fromSec(timeSurfPointsLessFlat);
-        laserCloudSurfLast2.header.frame_id = "/velodyne";
+        laserCloudSurfLast2.header.frame_id = "/camera";
         pubLaserCloudSurfLast.publish(laserCloudSurfLast2);
 
         sensor_msgs::PointCloud2 laserCloudFullRes3;
         pcl::toROSMsg(*laserCloudFullRes, laserCloudFullRes3);
         laserCloudFullRes3.header.stamp = ros::Time().fromSec(timeSurfPointsLessFlat);
-        laserCloudFullRes3.header.frame_id = "/velodyne";
+        laserCloudFullRes3.header.frame_id = "/camera";
         pubLaserCloudFullRes.publish(laserCloudFullRes3);
       }
     }

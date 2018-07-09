@@ -38,10 +38,19 @@ target_link_libraries(laserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV
 
 add_executable(transformMaintenance src/transformMaintenance.cpp)
 target_link_libraries(transformMaintenance ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
-
+# for ncrl use
 add_executable(ncrl_scanRegistration src/ncrl_scanRegistration.cpp)
 target_link_libraries(ncrl_scanRegistration ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 
+add_executable(ncrl_laserOdometry src/ncrl_laserOdometry.cpp)
+target_link_libraries(ncrl_laserOdometry ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+add_executable(ncrl_laserMapping src/ncrl_laserMapping.cpp)
+target_link_libraries(ncrl_laserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
+add_executable(ncrl_transformMaintenance src/ncrl_transformMaintenance.cpp)
+target_link_libraries(ncrl_transformMaintenance ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+# for ncrl use
 if (CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)
   # TODO: Download test data
