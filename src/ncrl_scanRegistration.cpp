@@ -39,6 +39,7 @@
 
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Point.h>
 #include <sensor_msgs/Imu.h>
 
 #include <pcl_conversions/pcl_conversions.h>
@@ -67,7 +68,7 @@ bool systemInited = false;
 bool state = true;
 float bias_x,bias_y,bias_z;
 sensor_msgs::Imu imu_data;
-int n = 801;
+int n = 501;
 float sum_x_imu = 0, sum_y_imu = 0, sum_z_imu = 0;
 float avg_x_imu = 0, avg_y_imu = 0, avg_z_imu = 0;
 int count_imu = 0;
@@ -119,6 +120,7 @@ ros::Publisher pubCornerPointsLessSharp;
 ros::Publisher pubSurfPointsFlat;
 ros::Publisher pubSurfPointsLessFlat;
 ros::Publisher pubImuTrans;
+ros::Publisher pubImu;
 
 void ShiftToStartIMU(float pointTime)
 {
@@ -435,7 +437,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
                   + laserCloud->points[i + 5].z;
 
       // all are vector [40000];
-      cloudCurvature[i] = diffX * diffX + diffY * diffY + diffZ * diffZ;
+      cloudCurvature[i] = pow(diffX,2) + pow(diffY,2) + pow(diffZ,2);
       cloudSortInd[i] = i;
       cloudNeighborPicked[i] = 0;
       cloudLabel[i] = 0;
@@ -697,9 +699,8 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 
 void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
 {
+  // compute the system error
   if (state){
-  // chad compute
-    //ROS_INFO("compute bias");
     imu_data = *imuIn;
     if (imu_data.linear_acceleration.x != 0 && imu_data.linear_acceleration.y != 0){
 
@@ -718,7 +719,7 @@ void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
       ROS_INFO("---Start calculate---");
       bias_x = sum_x_imu / (count_imu+1);
       bias_y = sum_y_imu / (count_imu+1);
-      bias_z = (sum_z_imu / (count_imu+1)) - 9.81;
+      bias_z = (sum_z_imu / (count_imu+1))-9.81;
       ROS_INFO("bias_x = %f, bias_y = %f, bias_z = %f", bias_x, bias_y, bias_z);
       count_imu += 1;
       ROS_INFO("---Finish---");
@@ -726,6 +727,7 @@ void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
     }
   }
 
+  // start
   if (state != true){
     //ROS_INFO("scan receive");
     double roll, pitch, yaw;
@@ -733,7 +735,7 @@ void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
     tf::quaternionMsgToTF(imuIn->orientation, orientation);
     tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
 
-    ROS_INFO("Roll : %f , Pitch : %f , Yaw : %f",roll,pitch,yaw);
+    //ROS_INFO("Roll : %f , Pitch : %f , Yaw : %f",roll,pitch,yaw);
 
     // initial acceleration is 0
     /*
@@ -741,12 +743,22 @@ void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
     float accY = imuIn->linear_acceleration.z - cos(roll) * cos(pitch) * 9.81;
     float accZ = imuIn->linear_acceleration.x + sin(pitch) * 9.81;
     */
-    // here is delete the gravity effect
-    float accX = imuIn->linear_acceleration.x - bias_x + sin(pitch)*cos(roll)*9.81;
-    float accY = imuIn->linear_acceleration.y - bias_y - sin(roll)*cos(pitch)*9.81;
-    float accZ = imuIn->linear_acceleration.z - bias_z + cos(roll)*cos(pitch)*9.81;
+    // here is delete the gravity effect let the static imu is 0
 
-    ROS_INFO("axx x : %f y : %f z : %f",accX,accY,accZ);
+    float accX = (imuIn->linear_acceleration.x + sin(pitch)*cos(roll)*9.81);
+    float accY = -(imuIn->linear_acceleration.y - sin(roll)*cos(pitch)*9.81);
+    float accZ = -(imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81);
+    float accX2 = imuIn->linear_acceleration.x + sin(pitch)*cos(roll)*9.81 - bias_x;
+    float accY2 = imuIn->linear_acceleration.y - sin(roll)*cos(pitch)*9.81 - bias_y;
+    float accZ2 = imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81 - bias_z;
+    geometry_msgs::Point imu_zero;
+    imu_zero.x = accX;
+    imu_zero.y = accY;
+    imu_zero.z = accZ;
+    pubImu.publish(imu_zero);
+    printf("bias x : %f\ty : %f\tz : %f\n", bias_x, bias_y, bias_z);
+    printf("acc x  : %f\ty : %f\tz : %f\n",accX,accY,accZ);
+    printf("acc x2 : %f\ty : %f\tz : %f\n\n",accX2,accY2,accZ2);
 
     // initial imuPointerLast is -1  imuQueLength = 200
     imuPointerLast = (imuPointerLast + 1) % imuQueLength;
@@ -778,7 +790,7 @@ int main(int argc, char** argv)
   pubSurfPointsFlat = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_flat", 2);
   pubSurfPointsLessFlat = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_less_flat", 2);
   pubImuTrans = nh.advertise<sensor_msgs::PointCloud2> ("/imu_trans", 5);
-
+  pubImu = nh.advertise<geometry_msgs::Point> ("/chadlin/imu",50);
   ros::spin();
 
   return 0;
