@@ -54,11 +54,13 @@
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
 
+#define GRAVITY 9.81
+
 using std::sin;
 using std::cos;
 using std::atan2;
 
-const double scanPeriod = 0.1;
+const double scanPeriod = 0.1; // need to adjust by setting lidar
 
 const int systemDelay = 20;
 int systemInitCount = 0;
@@ -127,7 +129,7 @@ void ShiftToStartIMU(float pointTime)
   imuShiftFromStartXCur = imuShiftXCur - imuShiftXStart - imuVeloXStart * pointTime;
   imuShiftFromStartYCur = imuShiftYCur - imuShiftYStart - imuVeloYStart * pointTime;
   imuShiftFromStartZCur = imuShiftZCur - imuShiftZStart - imuVeloZStart * pointTime;
-
+ /*
   float x1 = cos(imuYawStart) * imuShiftFromStartXCur - sin(imuYawStart) * imuShiftFromStartZCur;
   float y1 = imuShiftFromStartYCur;
   float z1 = sin(imuYawStart) * imuShiftFromStartXCur + cos(imuYawStart) * imuShiftFromStartZCur;
@@ -139,6 +141,19 @@ void ShiftToStartIMU(float pointTime)
   imuShiftFromStartXCur = cos(imuRollStart) * x2 + sin(imuRollStart) * y2;
   imuShiftFromStartYCur = -sin(imuRollStart) * x2 + cos(imuRollStart) * y2;
   imuShiftFromStartZCur = z2;
+  */
+  float x1 = cos(imuYawStart) * imuShiftFromStartXCur - sin(imuYawStart) * imuShiftFromStartYCur;
+  float y1 = sin(imuYawStart) * imuShiftFromStartXCur + cos(imuYawStart) * imuShiftFromStartYCur;
+  float z1 = imuShiftFromStartZCur;
+
+  float x2 = cos(imuPitchStart) * x1 + sin(imuPitchStart) * z1;
+  float y2 = y1;
+  float z2 = -sin(imuPitchStart) * x1 + cos(imuPitchStart) * z1;
+
+  imuShiftFromStartXCur = x2;
+  imuShiftFromStartYCur = cos(imuRollStart) * y2 - sin(imuRollStart) * z2;
+  imuShiftFromStartZCur = sin(imuRollStart) * y2 + cos(imuRollStart) * z2;
+
 }
 
 void VeloToStartIMU()
@@ -146,7 +161,7 @@ void VeloToStartIMU()
   imuVeloFromStartXCur = imuVeloXCur - imuVeloXStart;
   imuVeloFromStartYCur = imuVeloYCur - imuVeloYStart;
   imuVeloFromStartZCur = imuVeloZCur - imuVeloZStart;
-
+  /*
   float x1 = cos(imuYawStart) * imuVeloFromStartXCur - sin(imuYawStart) * imuVeloFromStartZCur;
   float y1 = imuVeloFromStartYCur;
   float z1 = sin(imuYawStart) * imuVeloFromStartXCur + cos(imuYawStart) * imuVeloFromStartZCur;
@@ -158,10 +173,23 @@ void VeloToStartIMU()
   imuVeloFromStartXCur = cos(imuRollStart) * x2 + sin(imuRollStart) * y2;
   imuVeloFromStartYCur = -sin(imuRollStart) * x2 + cos(imuRollStart) * y2;
   imuVeloFromStartZCur = z2;
+  */
+  float x1 = cos(imuYawStart) * imuVeloFromStartXCur - sin(imuYawStart) * imuVeloFromStartYCur;
+  float y1 = sin(imuYawStart) * imuVeloFromStartXCur + cos(imuYawStart) * imuVeloFromStartYCur;
+  float z1 = imuVeloFromStartZCur;
+
+  float x2 = cos(imuPitchStart) * x1 + sin(imuPitchStart) * z1;
+  float y2 = y1;
+  float z2 = -sin(imuPitchStart) * x1 + cos(imuPitchStart) * z1;
+
+  imuVeloFromStartXCur = x2;
+  imuVeloFromStartYCur = -sin(imuRollStart) * z2 + cos(imuRollStart) * y2;
+  imuVeloFromStartZCur = cos(imuRollStart) * z2 + sin(imuRollStart) * y2;
 }
 
 void TransformToStartIMU(PointType *p)
 {
+  /*
   float x1 = cos(imuRollCur) * p->x - sin(imuRollCur) * p->y;
   float y1 = sin(imuRollCur) * p->x + cos(imuRollCur) * p->y;
   float z1 = p->z;
@@ -185,6 +213,30 @@ void TransformToStartIMU(PointType *p)
   p->x = cos(imuRollStart) * x5 + sin(imuRollStart) * y5 + imuShiftFromStartXCur;
   p->y = -sin(imuRollStart) * x5 + cos(imuRollStart) * y5 + imuShiftFromStartYCur;
   p->z = z5 + imuShiftFromStartZCur;
+  */
+  float x1 = p->x;
+  float y1 = cos(imuRollCur) * p->y - sin(imuRollCur) * p->z;
+  float z1 = sin(imuRollCur) * p->y + cos(imuRollCur) * p->z;
+
+  float x2 = sin(imuPitchCur) * z1 + cos(imuPitchCur) * x1;
+  float y2 = y1;
+  float z2 = cos(imuPitchCur) * z1 - sin(imuPitchCur) * x1;
+
+  float x3 = cos(imuYawCur) * x2 - sin(imuYawCur) * y2;
+  float y3 = sin(imuYawCur) * x2 - cos(imuYawCur) * y2;
+  float z3 = z2;
+
+  float x4 = cos(imuYawStart) * x3 - sin(imuYawStart) * y3;
+  float y4 = sin(imuYawStart) * x3 - cos(imuYawStart) * y3;
+  float z4 = z3;
+
+  float x5 = sin(imuPitchStart) * z4 + cos(imuPitchStart) * x4;
+  float y5 = y4;
+  float z5 = cos(imuPitchStart) * z4 - sin(imuPitchStart) * x4;
+
+  p->x = x5 + imuShiftFromStartXCur;
+  p->y = cos(imuRollStart) * y5 - sin(imuRollStart) * z5 + imuShiftFromStartYCur;
+  p->z = sin(imuRollStart) * y5 + cos(imuRollStart) * z5 + imuShiftFromStartZCur;
 }
 
 void AccumulateIMUShift()
@@ -221,12 +273,12 @@ void AccumulateIMUShift()
   accY     = sin(yaw)*x2 + cos(yaw)*y2;
   accZ     = z2;
   // 3D rotation matrix
-
+  // find the point of last one
   int imuPointerBack = (imuPointerLast + imuQueLength - 1) % imuQueLength;
   double timeDiff = imuTime[imuPointerLast] - imuTime[imuPointerBack];
   // scanPeriod = 0.1
   if (timeDiff < scanPeriod) {
-
+    // delta x = delta x before + v*t + a*t^2/2
     imuShiftX[imuPointerLast] = imuShiftX[imuPointerBack] + imuVeloX[imuPointerBack] * timeDiff
                               + accX * pow(timeDiff,2) / 2;
     imuShiftY[imuPointerLast] = imuShiftY[imuPointerBack] + imuVeloY[imuPointerBack] * timeDiff
@@ -242,10 +294,11 @@ void AccumulateIMUShift()
 
 void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 {
-  if (state != true){
+  // initial state is true to check that imu bias
+  if (!state){
     if (!systemInited) {
       systemInitCount++;
-      // system delay is 20
+      // systemDelay is 20
       if (systemInitCount >= systemDelay) {
         systemInited = true;
       }
@@ -254,20 +307,20 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 
     std::vector<int> scanStartInd(N_SCANS, 0);
 
-    // chad
-    //printf("array : %d \n",scanStartInd[16]);
-
     std::vector<int> scanEndInd(N_SCANS, 0);
 
+    // trans ros msg to pcl msg and remove useless point
     double timeScanCur = laserCloudMsg->header.stamp.toSec();
     pcl::PointCloud<pcl::PointXYZ> laserCloudIn;
     pcl::fromROSMsg(*laserCloudMsg, laserCloudIn);
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(laserCloudIn, laserCloudIn, indices);
     int cloudSize = laserCloudIn.points.size();
+
+    // caculate the start & end orientation ; atan2 count -pi to pi
     float startOri = -atan2(laserCloudIn.points[0].y, laserCloudIn.points[0].x);
     float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y,laserCloudIn.points[cloudSize - 1].x) + 2 * M_PI;
-
+    // keep endOri - startOri is between 2pi to pi
     if (endOri - startOri > 3 * M_PI) {
       endOri -= 2 * M_PI;
     } else if (endOri - startOri < M_PI) {
@@ -277,7 +330,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     bool halfPassed = false;
     int count = cloudSize;
     PointType point;
-    std::vector<pcl::PointCloud<PointType> > laserCloudScans(N_SCANS);
+    std::vector<pcl::PointCloud<PointType> > laserCloudScans(N_SCANS); // 16 vector of pointcloud type
 
     //===================================
     for (int i = 0; i < cloudSize; i++) {
@@ -291,29 +344,30 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
       point.z = laserCloudIn.points[i].z;
 
       // classfy each point into 360 degree
-      float angle = atan(point.z / sqrt(pow(point.y,2) + pow(point.x,2))) * 180 / M_PI;
+      float angle = rad2deg( atan(point.z / sqrt(pow(point.y,2) + pow(point.x,2) )) );
       int scanID;
+      //rounded angle should between -15 to 15
       int roundedAngle = int(angle + (angle<0.0?-0.5:+0.5)); // means if angle <0 then -0.5 else 0.5 -90-90
 
-      // chad question
+      // chad question (each ring is 1.875 degree)
       if (roundedAngle > 0){
         scanID = roundedAngle;
       }
       else {
-        scanID = roundedAngle + (N_SCANS - 1);
+        scanID = roundedAngle + (N_SCANS-1);
       }
-      if (scanID > (N_SCANS - 1) || scanID < 0 ){
+      if (scanID > (N_SCANS-1) || scanID<0 ){
         count--;
         continue;
       }
 
-      // declare ori on camera frame
+      // declare ori on body frame
       float ori = -atan2(point.y, point.x);
       if (!halfPassed) {
-        if (ori < startOri - M_PI/2) {
+        if (ori < startOri - M_PI / 2) {
           ori += 2 * M_PI;
         }
-        else if (ori > startOri + M_PI*3/2) {
+        else if (ori > startOri + M_PI * 3 / 2) {
           ori -= 2 * M_PI;
         }
         if (ori - startOri > M_PI) {
@@ -332,13 +386,16 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 
       // caculate relative scan time based on point orientation
       float relTime = (ori - startOri) /(endOri - startOri);
-      point.intensity = scanID + scanPeriod * relTime;// scanPeriod = 0.1
+      // scanPeriod = 0.1 and means scanPeriod * relTime won't exceed 0.1
+      point.intensity = scanID + scanPeriod * relTime;
 
       // interact with imu
       //===================================
       if (imuPointerLast >= 0) {
         float pointTime = relTime * scanPeriod;
+       //imuPointerFront == 0;
         while (imuPointerFront != imuPointerLast) {
+          //timeScanCur =lidar point current time
           if (timeScanCur + pointTime < imuTime[imuPointerFront]) {
             break;
           }
@@ -364,6 +421,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
           float ratioBack = (imuTime[imuPointerFront] - timeScanCur - pointTime)
                           / (imuTime[imuPointerFront] - imuTime[imuPointerBack]);
 
+          // interpolation to compute roll, pitch & yaw
           imuRollCur = imuRoll[imuPointerFront] * ratioFront + imuRoll[imuPointerBack] * ratioBack;
           imuPitchCur = imuPitch[imuPointerFront] * ratioFront + imuPitch[imuPointerBack] * ratioBack;
           if (imuYaw[imuPointerFront] - imuYaw[imuPointerBack] > M_PI) {
@@ -374,10 +432,12 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
             imuYawCur = imuYaw[imuPointerFront] * ratioFront + imuYaw[imuPointerBack] * ratioBack;
           }
 
+          // interpolation to compute velocity
           imuVeloXCur = imuVeloX[imuPointerFront] * ratioFront + imuVeloX[imuPointerBack] * ratioBack;
           imuVeloYCur = imuVeloY[imuPointerFront] * ratioFront + imuVeloY[imuPointerBack] * ratioBack;
           imuVeloZCur = imuVeloZ[imuPointerFront] * ratioFront + imuVeloZ[imuPointerBack] * ratioBack;
 
+          // interpolation to compute shift
           imuShiftXCur = imuShiftX[imuPointerFront] * ratioFront + imuShiftX[imuPointerBack] * ratioBack;
           imuShiftYCur = imuShiftY[imuPointerFront] * ratioFront + imuShiftY[imuPointerBack] * ratioBack;
           imuShiftZCur = imuShiftZ[imuPointerFront] * ratioFront + imuShiftZ[imuPointerBack] * ratioBack;
@@ -461,9 +521,9 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
       float diffZ = laserCloud->points[i + 1].z - laserCloud->points[i].z;
       float diff = pow(diffX,2) + pow(diffY,2) + pow(diffZ,2);
 
-      // set the confine of mapping
-      if (diff > 0.1) {
 
+      if (diff > 0.1) {
+        // find the distance of each point away from lidar
         float depth1 = sqrt(pow(laserCloud->points[i].x,2)+
                             pow(laserCloud->points[i].y,2)+
                             pow(laserCloud->points[i].z,2));
@@ -471,13 +531,13 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
         float depth2 = sqrt(pow(laserCloud->points[i + 1].x,2)+
                             pow(laserCloud->points[i + 1].y,2)+
                             pow(laserCloud->points[i + 1].z,2));
-
+        // set the confine of mapping of (b)
         if (depth1 > depth2) {
           diffX = laserCloud->points[i + 1].x - laserCloud->points[i].x * depth2 / depth1;
           diffY = laserCloud->points[i + 1].y - laserCloud->points[i].y * depth2 / depth1;
           diffZ = laserCloud->points[i + 1].z - laserCloud->points[i].z * depth2 / depth1;
 
-          if (sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ) / depth2 < 0.1) {
+          if (sqrt(pow(diffX,2) + pow(diffY,2) + pow(diffZ,2)) / depth2 < 0.1) {
             cloudNeighborPicked[i - 5] = 1;
             cloudNeighborPicked[i - 4] = 1;
             cloudNeighborPicked[i - 3] = 1;
@@ -501,14 +561,13 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
         }
       }
 
+      // set the confine of mapping of (a)
       float diffX2 = laserCloud->points[i].x - laserCloud->points[i - 1].x;
       float diffY2 = laserCloud->points[i].y - laserCloud->points[i - 1].y;
       float diffZ2 = laserCloud->points[i].z - laserCloud->points[i - 1].z;
       float diff2 = pow(diffX2,2) + pow(diffY2,2) + pow(diffZ2,2);
 
-      float dis = pow(laserCloud->points[i].x,2)
-                + pow(laserCloud->points[i].y,2)
-                + pow(laserCloud->points[i].z,2);
+      float dis = pow(laserCloud->points[i].x,2)+ pow(laserCloud->points[i].y,2)+ pow(laserCloud->points[i].z,2);
 
       if (diff > 0.0002 * dis && diff2 > 0.0002 * dis) {
         cloudNeighborPicked[i] = 1;
