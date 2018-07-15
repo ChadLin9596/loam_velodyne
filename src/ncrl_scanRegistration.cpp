@@ -122,7 +122,6 @@ ros::Publisher pubCornerPointsLessSharp;
 ros::Publisher pubSurfPointsFlat;
 ros::Publisher pubSurfPointsLessFlat;
 ros::Publisher pubImuTrans;
-ros::Publisher pubImu;
 
 void ShiftToStartIMU(float pointTime)
 {
@@ -248,7 +247,8 @@ void AccumulateIMUShift()
   float accY = imuAccY[imuPointerLast];
   float accZ = imuAccZ[imuPointerLast];
 
-  // 3D rotation matrix  trans from imu frame to local frame?
+  // 3D rotation matrix  trans from imu frame to global frame
+
 //  float x1 = cos(roll)*accX - sin(roll)*accY;
 //  float y1 = sin(roll)*accX + cos(roll)*accY;
 //  float z1 = accZ;
@@ -272,13 +272,13 @@ void AccumulateIMUShift()
   accX     = cos(yaw)*x2 - sin(yaw)*y2;
   accY     = sin(yaw)*x2 + cos(yaw)*y2;
   accZ     = z2;
-  // 3D rotation matrix
+
   // find the point of last one
   int imuPointerBack = (imuPointerLast + imuQueLength - 1) % imuQueLength;
   double timeDiff = imuTime[imuPointerLast] - imuTime[imuPointerBack];
-  // scanPeriod = 0.1
+  // scanPeriod = 0.1 if imu update faster than point cloud
   if (timeDiff < scanPeriod) {
-    // delta x = delta x before + v*t + a*t^2/2
+    // delta x = delta x before + v*t + a*t^2/2  frame on global frame
     imuShiftX[imuPointerLast] = imuShiftX[imuPointerBack] + imuVeloX[imuPointerBack] * timeDiff
                               + accX * pow(timeDiff,2) / 2;
     imuShiftY[imuPointerLast] = imuShiftY[imuPointerBack] + imuVeloY[imuPointerBack] * timeDiff
@@ -326,7 +326,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     } else if (endOri - startOri < M_PI) {
       endOri += 2 * M_PI;
     }
-
+    printf("start ori = %f\t endOri = %f\n",startOri,endOri);  // chad test the start orientation
     bool halfPassed = false;
     int count = cloudSize;
     PointType point;
@@ -344,7 +344,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
       point.z = laserCloudIn.points[i].z;
 
       // classfy each point into 360 degree
-      float angle = rad2deg( atan(point.z / sqrt(pow(point.y,2) + pow(point.x,2) )) );
+      float angle = rad2deg( atan( point.z/ sqrt(pow(point.y,2)+pow(point.x,2)) ) );
       int scanID;
       //rounded angle should between -15 to 15
       int roundedAngle = int(angle + (angle<0.0?-0.5:+0.5)); // means if angle <0 then -0.5 else 0.5 -90-90
@@ -756,9 +756,11 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   }
 }
 
-void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
+void cb_imu(const sensor_msgs::Imu::ConstPtr& imuIn)
 {
-  // compute the system error
+  // assume the roll and pitch are all zero
+  // compute the system error without gravity
+  // imu frame is NED
   if (state){
     imu_data = *imuIn;
     if (imu_data.linear_acceleration.x != 0 && imu_data.linear_acceleration.y != 0){
@@ -772,13 +774,13 @@ void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
       avg_x_imu = sum_x_imu / count_imu;
       avg_y_imu = sum_y_imu / count_imu;
       avg_z_imu = sum_z_imu / count_imu;
-      ROS_INFO("loading ... %d",count_imu);
+      ROS_INFO("computing bias ... %d",count_imu);
     }
     if(count_imu == n-1){
       ROS_INFO("---Start calculate---");
-      bias_x = sum_x_imu / (count_imu+1);
-      bias_y = sum_y_imu / (count_imu+1);
-      bias_z = (sum_z_imu / (count_imu+1))-9.81;
+      bias_x = sum_x_imu / (count_imu);
+      bias_y = sum_y_imu / (count_imu);
+      bias_z = (sum_z_imu / (count_imu))-9.81;
       ROS_INFO("bias_x = %f, bias_y = %f, bias_z = %f", bias_x, bias_y, bias_z);
       count_imu += 1;
       ROS_INFO("---Finish---");
@@ -810,11 +812,12 @@ void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
     float accX2 = imuIn->linear_acceleration.x + sin(pitch)*cos(roll)*9.81 - bias_x;
     float accY2 = imuIn->linear_acceleration.y - sin(roll)*cos(pitch)*9.81 - bias_y;
     float accZ2 = imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81 - bias_z;
+
     geometry_msgs::Point imu_zero;
     imu_zero.x = accX;
     imu_zero.y = accY;
     imu_zero.z = accZ;
-    pubImu.publish(imu_zero);
+
     printf("bias x : %f\ty : %f\tz : %f\n", bias_x, bias_y, bias_z);
     printf("acc x  : %f\ty : %f\tz : %f\n",accX,accY,accZ);
     printf("acc x2 : %f\ty : %f\tz : %f\n\n",accX2,accY2,accZ2);
@@ -837,11 +840,11 @@ void cb_imuHandler(const sensor_msgs::Imu::ConstPtr& imuIn)
 int main(int argc, char** argv)
 {
   //ros::init(argc, argv, "scanRegistration");
-  ros::init(argc, argv, "scanRegistration");
+  ros::init(argc, argv, "ncrl_scanRegistration");
   ros::NodeHandle nh;
   // declare subscriber
   ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 2, cb_laserCloud);
-  ros::Subscriber subImu = nh.subscribe<sensor_msgs::Imu> ("/imu/data", 50, cb_imuHandler);
+  ros::Subscriber subImu = nh.subscribe<sensor_msgs::Imu> ("/imu/data", 50, cb_imu);
   // declare publisher
   pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_cloud_2", 2);
   pubCornerPointsSharp = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_sharp", 2);
@@ -849,7 +852,7 @@ int main(int argc, char** argv)
   pubSurfPointsFlat = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_flat", 2);
   pubSurfPointsLessFlat = nh.advertise<sensor_msgs::PointCloud2> ("/laser_cloud_less_flat", 2);
   pubImuTrans = nh.advertise<sensor_msgs::PointCloud2> ("/imu_trans", 5);
-  pubImu = nh.advertise<geometry_msgs::Point> ("/chadlin/imu",50);
+
   ros::spin();
 
   return 0;
