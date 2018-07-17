@@ -222,11 +222,11 @@ void TransformToStartIMU(PointType *p)
   float z2 = cos(imuPitchCur) * z1 - sin(imuPitchCur) * x1;
 
   float x3 = cos(imuYawCur) * x2 - sin(imuYawCur) * y2;
-  float y3 = sin(imuYawCur) * x2 - cos(imuYawCur) * y2;
+  float y3 = sin(imuYawCur) * x2 + cos(imuYawCur) * y2;
   float z3 = z2;
 
   float x4 = cos(imuYawStart) * x3 - sin(imuYawStart) * y3;
-  float y4 = sin(imuYawStart) * x3 - cos(imuYawStart) * y3;
+  float y4 = sin(imuYawStart) * x3 + cos(imuYawStart) * y3;
   float z4 = z3;
 
   float x5 = sin(imuPitchStart) * z4 + cos(imuPitchStart) * x4;
@@ -240,6 +240,8 @@ void TransformToStartIMU(PointType *p)
 
 void AccumulateIMUShift()
 {
+  // imuPointerLast means number n-1 when n data received
+  // the data were estimated from imu and magnetometer
   float roll = imuRoll[imuPointerLast];
   float pitch = imuPitch[imuPointerLast];
   float yaw = imuYaw[imuPointerLast];
@@ -247,7 +249,7 @@ void AccumulateIMUShift()
   float accY = imuAccY[imuPointerLast];
   float accZ = imuAccZ[imuPointerLast];
 
-  // 3D rotation matrix  trans from imu frame to global frame
+  // trans from imu frame to global frame
 
 //  float x1 = cos(roll)*accX - sin(roll)*accY;
 //  float y1 = sin(roll)*accX + cos(roll)*accY;
@@ -273,19 +275,21 @@ void AccumulateIMUShift()
   accY     = sin(yaw)*x2 + cos(yaw)*y2;
   accZ     = z2;
 
-  // find the point of last one
+  printf ("world frame : x : %f\t y : %f\t z : %f\n",accX,accY,accZ);
+
+  // imuPointerBack means number n-2 when n data received
   int imuPointerBack = (imuPointerLast + imuQueLength - 1) % imuQueLength;
   double timeDiff = imuTime[imuPointerLast] - imuTime[imuPointerBack];
   // scanPeriod = 0.1 if imu update faster than point cloud
   if (timeDiff < scanPeriod) {
-    // delta x = delta x before + v*t + a*t^2/2  frame on global frame
+    // delta distance = distance_before + velocity * t + 0.5 * acceleration + t^2 [world frame]
     imuShiftX[imuPointerLast] = imuShiftX[imuPointerBack] + imuVeloX[imuPointerBack] * timeDiff
                               + accX * pow(timeDiff,2) / 2;
     imuShiftY[imuPointerLast] = imuShiftY[imuPointerBack] + imuVeloY[imuPointerBack] * timeDiff
                               + accY * pow(timeDiff,2) / 2;
     imuShiftZ[imuPointerLast] = imuShiftZ[imuPointerBack] + imuVeloZ[imuPointerBack] * timeDiff
                               + accZ * pow(timeDiff,2) / 2;
-
+    // update velocity v = v0 + at [world frame]
     imuVeloX[imuPointerLast] = imuVeloX[imuPointerBack] + accX * timeDiff;
     imuVeloY[imuPointerLast] = imuVeloY[imuPointerBack] + accY * timeDiff;
     imuVeloZ[imuPointerLast] = imuVeloZ[imuPointerBack] + accZ * timeDiff;
@@ -326,7 +330,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     } else if (endOri - startOri < M_PI) {
       endOri += 2 * M_PI;
     }
-    printf("start ori = %f\t endOri = %f\n",startOri,endOri);  // chad test the start orientation
+
     bool halfPassed = false;
     int count = cloudSize;
     PointType point;
@@ -387,13 +391,13 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
       // caculate relative scan time based on point orientation
       float relTime = (ori - startOri) /(endOri - startOri);
       // scanPeriod = 0.1 and means scanPeriod * relTime won't exceed 0.1
-      point.intensity = scanID + scanPeriod * relTime;
+      point.intensity = scanID + scanPeriod * relTime; // integer = scanID float = scan time
 
       // interact with imu
       //===================================
       if (imuPointerLast >= 0) {
         float pointTime = relTime * scanPeriod;
-       //imuPointerFront == 0;
+       //imuPointerFront = the time brfore point i
         while (imuPointerFront != imuPointerLast) {
           //timeScanCur =lidar point current time
           if (timeScanCur + pointTime < imuTime[imuPointerFront]) {
@@ -402,6 +406,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
           imuPointerFront = (imuPointerFront + 1) % imuQueLength;
         }
 
+        // purpose : we want time of point i is larger than imu time so we can compare the motion
         if (timeScanCur + pointTime > imuTime[imuPointerFront]) {
           imuRollCur = imuRoll[imuPointerFront];
           imuPitchCur = imuPitch[imuPointerFront];
@@ -415,6 +420,7 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
           imuShiftYCur = imuShiftY[imuPointerFront];
           imuShiftZCur = imuShiftZ[imuPointerFront];
         } else {
+          // imuPointerBack  = imuPointerFront - 1  linear interpolation to cpmpute the angle, offset, velocity of imu
           int imuPointerBack = (imuPointerFront + imuQueLength - 1) % imuQueLength;
           float ratioFront = (timeScanCur + pointTime - imuTime[imuPointerBack])
                            / (imuTime[imuPointerFront] - imuTime[imuPointerBack]);
@@ -455,8 +461,11 @@ void cb_laserCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
           imuShiftYStart = imuShiftYCur;
           imuShiftZStart = imuShiftZCur;
         } else {
+          // trans lidar offset to imu initial frame
           ShiftToStartIMU(pointTime);
+          // trans lidar velocity to imu initial frame
           VeloToStartIMU();
+          // trans point to imu initial frame
           TransformToStartIMU(&point);
         }
         //===================================
@@ -796,32 +805,14 @@ void cb_imu(const sensor_msgs::Imu::ConstPtr& imuIn)
     tf::quaternionMsgToTF(imuIn->orientation, orientation);
     tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
 
-    ROS_INFO("Roll : %f , Pitch : %f , Yaw : %f",rad2deg(roll),rad2deg(pitch),rad2deg(yaw));
+    printf("Roll : %f\t Pitch : %f\t Yaw : %f\n",roll,pitch,yaw);
 
-    // initial acceleration is 0
-    /*
-    float accX = imuIn->linear_acceleration.y - sin(roll) * cos(pitch) * 9.81;
-    float accY = imuIn->linear_acceleration.z - cos(roll) * cos(pitch) * 9.81;
-    float accZ = imuIn->linear_acceleration.x + sin(pitch) * 9.81;
-    */
-
-    // here is delete the gravity effect let the static imu is 0
+    // delete the gravity effect
     float accX = imuIn->linear_acceleration.x + sin(pitch)*cos(roll)*9.81 - bias_x;
     float accY = imuIn->linear_acceleration.y - sin(roll)*cos(pitch)*9.81 - bias_y;
     float accZ = imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81 - bias_z;
 
-//    float accX2 = imuIn->linear_acceleration.x + sin(pitch)*cos(roll)*9.81 - bias_x;
-//    float accY2 = imuIn->linear_acceleration.y - sin(roll)*cos(pitch)*9.81 - bias_y;
-//    float accZ2 = imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81 - bias_z;
-
-//    geometry_msgs::Point imu_zero;
-//    imu_zero.x = accX;
-//    imu_zero.y = accY;
-//    imu_zero.z = accZ;
-
-//    printf("bias x : %f\ty : %f\tz : %f\n", bias_x, bias_y, bias_z);
-//    printf("acc x  : %f\ty : %f\tz : %f\n",accX,accY,accZ);
-//    printf("acc x2 : %f\ty : %f\tz : %f\n\n",accX2,accY2,accZ2);
+    printf("acc x  : %f\t y : %f\t z : %f\n",accX,accY,accZ);
 
     // initial imuPointerLast is -1  imuQueLength = 200
     imuPointerLast = (imuPointerLast + 1) % imuQueLength;

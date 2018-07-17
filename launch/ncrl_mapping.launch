@@ -1,12 +1,12 @@
 <launch>
 
   <arg name="rviz" default="true" />
-  <remap from="imu/data" to="mavros/imu/data"/>
+  <!--remap from="imu/data" to="mavros/imu/calib"/-->
 
   <node pkg="loam_velodyne" type="ncrl_scanRegistration" name="ncrl_scanRegistration" output="screen"/>
   <node pkg="loam_velodyne" type="ncrl_laserOdometry" name="ncrl_laserOdometry" output="screen" respawn="true">
   </node>
   <node pkg="loam_velodyne" type="ncrl_laserMapping" name="ncrl_laserMapping" output="screen"/>
   <node pkg="loam_velodyne" type="ncrl_transformMaintenance" name="ncrl_transformMaintenance" output="screen"/>
-
+  <!--node pkg="ncrl_imu_bias" type="imucalibrate" name="imucalibrate" output="screen"/-->
 </launch>
