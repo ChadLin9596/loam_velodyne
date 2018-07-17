@@ -796,7 +796,7 @@ void cb_imu(const sensor_msgs::Imu::ConstPtr& imuIn)
     tf::quaternionMsgToTF(imuIn->orientation, orientation);
     tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
 
-    //ROS_INFO("Roll : %f , Pitch : %f , Yaw : %f",roll,pitch,yaw);
+    ROS_INFO("Roll : %f , Pitch : %f , Yaw : %f",rad2deg(roll),rad2deg(pitch),rad2deg(yaw));
 
     // initial acceleration is 0
     /*
@@ -804,27 +804,29 @@ void cb_imu(const sensor_msgs::Imu::ConstPtr& imuIn)
     float accY = imuIn->linear_acceleration.z - cos(roll) * cos(pitch) * 9.81;
     float accZ = imuIn->linear_acceleration.x + sin(pitch) * 9.81;
     */
+
     // here is delete the gravity effect let the static imu is 0
+    float accX = imuIn->linear_acceleration.x + sin(pitch)*cos(roll)*9.81 - bias_x;
+    float accY = imuIn->linear_acceleration.y - sin(roll)*cos(pitch)*9.81 - bias_y;
+    float accZ = imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81 - bias_z;
 
-    float accX = (imuIn->linear_acceleration.x + sin(pitch)*cos(roll)*9.81);
-    float accY = -(imuIn->linear_acceleration.y - sin(roll)*cos(pitch)*9.81);
-    float accZ = -(imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81);
-    float accX2 = imuIn->linear_acceleration.x + sin(pitch)*cos(roll)*9.81 - bias_x;
-    float accY2 = imuIn->linear_acceleration.y - sin(roll)*cos(pitch)*9.81 - bias_y;
-    float accZ2 = imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81 - bias_z;
+//    float accX2 = imuIn->linear_acceleration.x + sin(pitch)*cos(roll)*9.81 - bias_x;
+//    float accY2 = imuIn->linear_acceleration.y - sin(roll)*cos(pitch)*9.81 - bias_y;
+//    float accZ2 = imuIn->linear_acceleration.z - cos(roll)*cos(pitch)*9.81 - bias_z;
 
-    geometry_msgs::Point imu_zero;
-    imu_zero.x = accX;
-    imu_zero.y = accY;
-    imu_zero.z = accZ;
+//    geometry_msgs::Point imu_zero;
+//    imu_zero.x = accX;
+//    imu_zero.y = accY;
+//    imu_zero.z = accZ;
 
-    printf("bias x : %f\ty : %f\tz : %f\n", bias_x, bias_y, bias_z);
-    printf("acc x  : %f\ty : %f\tz : %f\n",accX,accY,accZ);
-    printf("acc x2 : %f\ty : %f\tz : %f\n\n",accX2,accY2,accZ2);
+//    printf("bias x : %f\ty : %f\tz : %f\n", bias_x, bias_y, bias_z);
+//    printf("acc x  : %f\ty : %f\tz : %f\n",accX,accY,accZ);
+//    printf("acc x2 : %f\ty : %f\tz : %f\n\n",accX2,accY2,accZ2);
 
     // initial imuPointerLast is -1  imuQueLength = 200
     imuPointerLast = (imuPointerLast + 1) % imuQueLength;
 
+    // ENU imu frame
     imuTime [imuPointerLast] = imuIn->header.stamp.toSec();
     imuRoll [imuPointerLast] = roll;
     imuPitch[imuPointerLast] = pitch;
